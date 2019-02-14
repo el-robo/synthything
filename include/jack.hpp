@@ -12,10 +12,11 @@ namespace audio::jack
 		engine( std::string_view name );
 		~engine();
 
-		void write_audio() override;
+		void write_audio( const std::vector< buffer >& ) override;
 
+		struct implementation;
+		
 		private:
-			struct implementation;
 			std::unique_ptr< implementation > impl_;
 	};
 	

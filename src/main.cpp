@@ -16,7 +16,6 @@ int main( int argc, char **argv )
 	try
 	{
 		audio::jack::engine audio( project_name );
-
 	}
 	catch( std::exception &e )
 	{

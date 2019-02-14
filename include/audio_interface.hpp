@@ -1,7 +1,11 @@
+#include <vector>
+
 namespace audio
 {
 	struct interface
 	{
-		virtual void write_audio() = 0;
+		using buffer = std::vector< float >;
+
+		virtual void write_audio( const std::vector< buffer > & ) = 0;
 	};
 }
