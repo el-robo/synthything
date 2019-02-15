@@ -12,7 +12,10 @@ namespace audio::jack
 		engine( std::string_view name );
 		~engine();
 
-		void write_audio( const std::vector< buffer >& ) override;
+		virtual uint32_t sample_rate() const override;
+		virtual uint32_t channels_count() const override;
+		
+		virtual frame next_frame() override;
 
 		struct implementation;
 		

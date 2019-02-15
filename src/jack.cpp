@@ -71,7 +71,7 @@ namespace audio::jack
 	struct channel
 	{
 		jack::port port;
-		engine::buffer buffer;
+		std::future< engine::buffer > buffer;
 	};
 
 	auto create_channels( jack_client_t *client, int count, int buffer_size, JackPortFlags flags = JackPortIsOutput )
@@ -88,7 +88,7 @@ namespace audio::jack
 				return
 				{
 					create_port( client, port_name, buffer_size, flags ),
-					engine::buffer {}
+					{}
 				};
 			}
 		);
@@ -157,8 +157,20 @@ namespace audio::jack
 	{
 	}
 
-	void engine::write_audio( const std::vector< buffer > &audio )
+	uint32_t engine::sample_rate() const
 	{
+		return jack_get_sample_rate( impl_->client.get() );
+	}
+
+	uint32_t engine::channels_count() const
+	{
+		return impl_->channels.size();
+	}
+
+	frame engine::next_frame()
+	{
+		// recycle buffers here
+		return {};
 	}
 
 	template< typename Result, typename ... Args >
