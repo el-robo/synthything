@@ -2,6 +2,8 @@
 
 #include <fmt/format.h>
 #include <atomic>
+#include <algorithm>
+#include <functional>
 
 namespace audio::jack 
 {
@@ -38,6 +40,51 @@ namespace audio::jack
 		return client;
 	}
 
+	using port = std::unique_ptr< jack_port_t, std::function< void( jack_port_t * ) > >;
+
+	port create_port( jack_client_t *client, std::string_view port_name, int buffer_size, JackPortFlags flags = JackPortIsOutput )
+	{
+		port result
+		{
+			jack_port_register( 
+				client, 
+				port_name.data(),
+				JACK_DEFAULT_AUDIO_TYPE,
+				flags,
+				buffer_size
+			),
+			[ client ]( auto *port )
+			{
+				jack_port_unregister( client, port );
+			}
+		};
+
+		if( !result )
+		{
+			throw std::runtime_error( fmt::format( "could not register port {}", port_name.data() ) );
+		}
+
+		return result;
+	}
+
+	auto create_ports( jack_client_t *client, int count, int buffer_size, JackPortFlags flags = JackPortIsOutput )
+	{
+		std::vector< port > ports;
+		ports.reserve( count );
+
+		std::generate_n(
+			std::back_inserter( ports ),
+			count,
+			[ &, channel = 0 ]( ) mutable
+			{
+				const auto port_name = fmt::format( "out_{}", channel++ );
+				return create_port( client, port_name, buffer_size, flags );
+			}
+		);
+		
+		return ports;
+	}
+
 	void jack_shutdown( void *arg );
 	int jack_process( jack_nframes_t nframes, void* arg );
 
@@ -45,14 +92,17 @@ namespace audio::jack
 	{
 		std::atomic< bool > jack_server_running;
 		jack::client client;
-
+		std::vector < port > ports;
 
 		implementation( std::string_view name ) :
 			jack_server_running( false ),
-			client( create_client( name, jack_server_running ) )
+			client( create_client( name, jack_server_running ) ),
+			ports( create_ports( client.get(), 2, 1920 ) )
 		{
 			jack_set_process_callback( client.get(), &jack_process, this );
 			jack_on_shutdown( client.get(), jack_shutdown, this );
+
+			// jack_activate()
 		}
 
 		void shutdown()
