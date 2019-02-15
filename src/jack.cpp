@@ -4,6 +4,7 @@
 #include <atomic>
 #include <algorithm>
 #include <functional>
+#include <type_traits>
 
 namespace audio::jack 
 {
@@ -67,42 +68,59 @@ namespace audio::jack
 		return result;
 	}
 
-	auto create_ports( jack_client_t *client, int count, int buffer_size, JackPortFlags flags = JackPortIsOutput )
+	struct channel
 	{
-		std::vector< port > ports;
-		ports.reserve( count );
+		jack::port port;
+		engine::buffer buffer;
+	};
+
+	auto create_channels( jack_client_t *client, int count, int buffer_size, JackPortFlags flags = JackPortIsOutput )
+	{
+		std::vector< channel > channels;
+		channels.reserve( count );
 
 		std::generate_n(
-			std::back_inserter( ports ),
+			std::back_inserter( channels ),
 			count,
-			[ &, channel = 0 ]( ) mutable
+			[ &, channel = 0 ]( ) mutable -> channel
 			{
 				const auto port_name = fmt::format( "out_{}", channel++ );
-				return create_port( client, port_name, buffer_size, flags );
+				return
+				{
+					create_port( client, port_name, buffer_size, flags ),
+					engine::buffer {}
+				};
 			}
 		);
 		
-		return ports;
+		return channels;
 	}
 
-	void jack_shutdown( void *arg );
-	int jack_process( jack_nframes_t nframes, void* arg );
+	void jack_on_shutdown( void *arg );
+	int jack_on_process( jack_nframes_t nframes, void* arg );
+	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg );
 
 	struct engine::implementation
 	{
 		std::atomic< bool > jack_server_running;
 		jack::client client;
-		std::vector < port > ports;
+		jack_nframes_t buffer_size;
+		std::vector< channel > channels;
 
 		implementation( std::string_view name ) :
 			jack_server_running( false ),
 			client( create_client( name, jack_server_running ) ),
-			ports( create_ports( client.get(), 2, 1920 ) )
+			buffer_size( jack_get_buffer_size( client.get() ) ),
+			channels( create_channels( client.get(), 2, buffer_size ) )
 		{
-			jack_set_process_callback( client.get(), &jack_process, this );
-			jack_on_shutdown( client.get(), jack_shutdown, this );
+			jack_set_process_callback( client.get(), &jack_on_process, this );
+			jack_set_buffer_size_callback( client.get(), &jack_on_buffer_size_change, this );
+			jack_on_shutdown( client.get(), &jack_on_shutdown, this );
 
-			// jack_activate()
+			if( auto error = jack_activate( client.get() ); error != 0 )
+			{
+				throw std::runtime_error( fmt::format( "could not activate jack client, error {}", error ) );
+			}
 		}
 
 		void shutdown()
@@ -110,30 +128,24 @@ namespace audio::jack
 			jack_server_running = false;
 		}
 
-		void process( jack_nframes_t frames )
+		int process( jack_nframes_t frames )
 		{
-			// impl->jack_clock += nframes;
-
-			// for( auto &channel : impl->channels )
-			// {
-			// 	if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port, nframes ) ) )
-			// 	{
-			// 		switch( impl->mode )
-			// 		{
-			// 			case DaveDefines::Output:
-			// 			{
-			// 				mix_out( channel.buffer, data, nframes );
-			// 				break;
-			// 			}
-
-			// 			default:
-			// 			{
-			// 				break;
-			// 			}
-			// 		}
-			// 	}
-			// }
+			for( auto &channel : channels )
+			{
+				if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port.get(), frames ) ) )
+				{
+					// write channel buffer to data 
+				}
+			}
+			return 0;
 		}
+
+		int buffer_size_changed( jack_nframes_t size )
+		{
+			buffer_size = size;
+			return 0;
+		}
+
 	};
 
 	engine::engine( std::string_view name ) :
@@ -149,22 +161,34 @@ namespace audio::jack
 	{
 	}
 
-	void jack_shutdown( void *arg )
+	template< typename Result, typename ... Args >
+	auto call_on_implementation( Result( engine::implementation::*func )( Args ... ),  void *ptr, Args ... args ) -> Result
 	{
-		if( auto impl = reinterpret_cast< engine::implementation* >( arg ) )
-	   	{
-			impl->jack_server_running = false;
-		}
-	}
-	
-	int jack_process( jack_nframes_t nframes, void* arg )
-	{
-		if( auto impl = reinterpret_cast< engine::implementation* >( arg ) )
+		if( auto impl = reinterpret_cast< engine::implementation* >( ptr ) )
 		{
-			impl->process( nframes );
-			return 0;
+			auto call_member_on = std::mem_fn( func );
+			return call_member_on( impl, args... );
 		}
 
-		return -1;
+		if constexpr( std::is_void_v< Result > == false )
+		{
+			return Result();
+		}
 	}
+
+	void jack_on_shutdown( void *arg )
+	{
+		call_on_implementation( &engine::implementation::shutdown, arg );
+	}
+	
+	int jack_on_process( jack_nframes_t nframes, void* arg )
+	{
+		return call_on_implementation( &engine::implementation::process, arg, nframes );
+	}
+
+	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg )
+	{
+		return call_on_implementation( &engine::implementation::buffer_size_changed, arg, nframes );
+	}
+
 }
