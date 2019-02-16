@@ -1,3 +1,5 @@
+#pragma once
+
 #include "audio_interface.hpp"
 
 #include <jack/jack.h>
@@ -7,10 +9,10 @@
 
 namespace audio::jack
 {
-	struct engine : audio::interface
+	struct interface : audio::interface
 	{
-		engine( std::string_view name );
-		~engine();
+		interface( std::string_view name );
+		~interface();
 
 		virtual uint32_t sample_rate() const override;
 		virtual uint32_t channels_count() const override;

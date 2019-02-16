@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <exception>
+#include <stdio.h>
 
 #define FMT_STRING_ALIAS 1
 #include <fmt/format.h>
@@ -15,7 +16,15 @@ int main( int argc, char **argv )
 
 	try
 	{
-		audio::jack::engine audio( project_name );
+		audio::jack::interface audio( project_name );
+		synth::engine engine( audio );
+
+		bool running = true;
+		
+		while( running )
+		{
+			std::this_thread::yield();
+		}
 	}
 	catch( std::exception &e )
 	{

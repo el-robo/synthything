@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <functional>
 #include <type_traits>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 namespace audio::jack 
 {
@@ -71,7 +74,6 @@ namespace audio::jack
 	struct channel
 	{
 		jack::port port;
-		std::future< engine::buffer > buffer;
 	};
 
 	auto create_channels( jack_client_t *client, int count, int buffer_size, JackPortFlags flags = JackPortIsOutput )
@@ -87,8 +89,7 @@ namespace audio::jack
 				const auto port_name = fmt::format( "out_{}", channel++ );
 				return
 				{
-					create_port( client, port_name, buffer_size, flags ),
-					{}
+					create_port( client, port_name, buffer_size, flags )
 				};
 			}
 		);
@@ -100,12 +101,13 @@ namespace audio::jack
 	int jack_on_process( jack_nframes_t nframes, void* arg );
 	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg );
 
-	struct engine::implementation
+	struct interface::implementation
 	{
 		std::atomic< bool > jack_server_running;
 		jack::client client;
 		jack_nframes_t buffer_size;
 		std::vector< channel > channels;
+		std::future< std::vector< buffer > > future_buffers;
 
 		implementation( std::string_view name ) :
 			jack_server_running( false ),
@@ -130,11 +132,16 @@ namespace audio::jack
 
 		int process( jack_nframes_t frames )
 		{
-			for( auto &channel : channels )
+			if( future_buffers.valid() && future_buffers.wait_for( 1ms ) == std::future_status::ready )
 			{
-				if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port.get(), frames ) ) )
+				auto buffers = future_buffers.get();
+
+				for( auto &channel : channels )
 				{
-					// write channel buffer to data 
+					if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port.get(), frames ) ) )
+					{
+						// write channel buffer to data
+					}
 				}
 			}
 			return 0;
@@ -148,35 +155,45 @@ namespace audio::jack
 
 	};
 
-	engine::engine( std::string_view name ) :
+	interface::interface( std::string_view name ) :
 		impl_( new implementation( name ) )
 	{
 	}
 
-	engine::~engine()
+	interface::~interface()
 	{
 	}
 
-	uint32_t engine::sample_rate() const
+	uint32_t interface::sample_rate() const
 	{
 		return jack_get_sample_rate( impl_->client.get() );
 	}
 
-	uint32_t engine::channels_count() const
+	uint32_t interface::channels_count() const
 	{
 		return impl_->channels.size();
 	}
 
-	frame engine::next_frame()
+	frame interface::next_frame()
 	{
-		// recycle buffers here
-		return {};
+		std::vector< buffer > recycled_buffers;
+
+		frame result
+		{
+			impl_->buffer_size, // sample count
+			2, // channel count
+			{}, // promise constructed by default
+			std::move( recycled_buffers ) // recycled buffers
+		};
+
+		impl_->future_buffers = result.promised_buffers.get_future();
+		return result;
 	}
 
 	template< typename Result, typename ... Args >
-	auto call_on_implementation( Result( engine::implementation::*func )( Args ... ),  void *ptr, Args ... args ) -> Result
+	auto call_on_implementation( Result( interface::implementation::*func )( Args ... ),  void *ptr, Args ... args ) -> Result
 	{
-		if( auto impl = reinterpret_cast< engine::implementation* >( ptr ) )
+		if( auto impl = reinterpret_cast< interface::implementation* >( ptr ) )
 		{
 			auto call_member_on = std::mem_fn( func );
 			return call_member_on( impl, args... );
@@ -190,17 +207,17 @@ namespace audio::jack
 
 	void jack_on_shutdown( void *arg )
 	{
-		call_on_implementation( &engine::implementation::shutdown, arg );
+		call_on_implementation( &interface::implementation::shutdown, arg );
 	}
 	
 	int jack_on_process( jack_nframes_t nframes, void* arg )
 	{
-		return call_on_implementation( &engine::implementation::process, arg, nframes );
+		return call_on_implementation( &interface::implementation::process, arg, nframes );
 	}
 
 	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg )
 	{
-		return call_on_implementation( &engine::implementation::buffer_size_changed, arg, nframes );
+		return call_on_implementation( &interface::implementation::buffer_size_changed, arg, nframes );
 	}
 
 }
