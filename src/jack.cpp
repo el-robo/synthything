@@ -145,12 +145,22 @@ namespace audio::jack
 			if( future_buffers.valid() && future_buffers.wait_for( 1ms ) == std::future_status::ready )
 			{
 				auto buffers = future_buffers.get();
+				auto channel_it = channels.begin();
+				auto buffer_it = buffers.begin();
 
-				for( auto &channel : channels )
+				for( ; channel_it < channels.end() && buffer_it < buffers.end();
+					++channel_it, ++buffer_it )
 				{
+					auto &channel = *channel_it;
+					auto &buffer = *buffer_it;
+
 					if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port.get(), frames ) ) )
 					{
-						// write channel buffer to data
+						std::copy_n( 
+							buffer.begin(), 
+							std::min< size_t >( frames, buffer.size() ), 
+							data
+						);
 					}
 				}
 
