@@ -6,11 +6,13 @@
 #include <functional>
 #include <type_traits>
 #include <chrono>
+#include <mutex>
 
 using namespace std::chrono_literals;
 
 namespace audio::jack 
 {
+	using buffers = std::vector< buffer >;
 	using client = std::unique_ptr< jack_client_t, decltype( &jack_client_close ) >;
 
 	client create_client( std::string_view name, std::atomic< bool > &server_running )
@@ -107,13 +109,19 @@ namespace audio::jack
 		jack::client client;
 		jack_nframes_t buffer_size;
 		std::vector< channel > channels;
-		std::future< std::vector< buffer > > future_buffers;
+
+		std::mutex mutex;
+		std::future< buffers > future_buffers;
+		buffers recycled_buffers;
 
 		implementation( std::string_view name ) :
 			jack_server_running( false ),
 			client( create_client( name, jack_server_running ) ),
 			buffer_size( jack_get_buffer_size( client.get() ) ),
-			channels( create_channels( client.get(), 2, buffer_size ) )
+			channels( create_channels( client.get(), 2, buffer_size ) ),
+			mutex(),
+			future_buffers(),
+			recycled_buffers()
 		{
 			jack_set_process_callback( client.get(), &jack_on_process, this );
 			jack_set_buffer_size_callback( client.get(), &jack_on_buffer_size_change, this );
@@ -132,6 +140,8 @@ namespace audio::jack
 
 		int process( jack_nframes_t frames )
 		{
+			std::lock_guard guard( mutex );
+
 			if( future_buffers.valid() && future_buffers.wait_for( 1ms ) == std::future_status::ready )
 			{
 				auto buffers = future_buffers.get();
@@ -143,6 +153,8 @@ namespace audio::jack
 						// write channel buffer to data
 					}
 				}
+
+				std::swap( buffers, recycled_buffers );
 			}
 			return 0;
 		}
@@ -176,17 +188,19 @@ namespace audio::jack
 
 	frame interface::next_frame()
 	{
-		std::vector< buffer > recycled_buffers;
+		std::lock_guard guard( impl_->mutex );
 
 		frame result
 		{
 			impl_->buffer_size, // sample count
 			2, // channel count
 			{}, // promise constructed by default
-			std::move( recycled_buffers ) // recycled buffers
+			{} // recycled buffers
 		};
 
+		std::swap( result.recycled_buffers, impl_->recycled_buffers );
 		impl_->future_buffers = result.promised_buffers.get_future();
+
 		return result;
 	}
 
