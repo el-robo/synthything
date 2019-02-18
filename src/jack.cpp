@@ -138,34 +138,41 @@ namespace audio::jack
 			jack_server_running = false;
 		}
 
-		int process( jack_nframes_t frames )
+		buffers get_buffers()
 		{
 			std::lock_guard guard( mutex );
-
-			if( future_buffers.valid() && future_buffers.wait_for( 1ms ) == std::future_status::ready )
+				
+			if( future_buffers.valid() && future_buffers.wait_for( 10ms ) == std::future_status::ready )
 			{
-				auto buffers = future_buffers.get();
+				return future_buffers.get();
+			}
+
+			return {};
+		}
+
+		int process( jack_nframes_t frames )
+		{
+			auto buffers = get_buffers();
+
+			if( !buffers.empty() )
+			{
 				auto channel_it = channels.begin();
-				auto buffer_it = buffers.begin();
 
-				for( ; channel_it < channels.end() && buffer_it < buffers.end();
-					++channel_it, ++buffer_it )
+				if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( 
+					jack_port_get_buffer( channels.front().port.get(), frames ) 
+				) )
 				{
-					auto &channel = *channel_it;
-					auto &buffer = *buffer_it;
-
-					if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( jack_port_get_buffer( channel.port.get(), frames ) ) )
-					{
-						std::copy_n( 
-							buffer.begin(), 
-							std::min< size_t >( frames, buffer.size() ), 
-							data
-						);
-					}
+					const auto samples = std::min< size_t >( frames, buffers.front().size() );
+					std::copy_n( 
+						buffers.front().begin(), 
+						samples, 
+						data
+					);
 				}
 
 				std::swap( buffers, recycled_buffers );
 			}
+
 			return 0;
 		}
 
@@ -191,7 +198,7 @@ namespace audio::jack
 		return jack_get_sample_rate( impl_->client.get() );
 	}
 
-	uint32_t interface::channels_count() const
+	uint32_t interface::channel_count() const
 	{
 		return impl_->channels.size();
 	}

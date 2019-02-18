@@ -15,7 +15,7 @@ namespace audio::jack
 		~interface();
 
 		virtual uint32_t sample_rate() const override;
-		virtual uint32_t channels_count() const override;
+		virtual uint32_t channel_count() const override;
 		
 		virtual frame next_frame() override;
 

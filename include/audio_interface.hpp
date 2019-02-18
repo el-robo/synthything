@@ -11,7 +11,7 @@ namespace audio
 	struct interface
 	{
 		virtual uint32_t sample_rate() const = 0;
-		virtual uint32_t channels_count() const = 0;
+		virtual uint32_t channel_count() const = 0;
 		
 		virtual frame next_frame() = 0;
 	};
