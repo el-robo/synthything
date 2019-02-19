@@ -123,11 +123,12 @@ void run_engine( engine::implementation &impl )
 		auto frame = impl.audio.next_frame();
 		auto buffers = get_buffers( frame );
 
-		// buffers.begin()
-		// std::for_each( )
-		std::transform( voices.front(), voices.end(),  )
-		
-			generate( buffers.front(), voices.front() );
+		auto buffer = buffers.begin();
+		auto voice = voices.begin();
+
+		while( buffer != buffers.end() && voice != voices.end() )
+		{
+			generate( *buffer++, *voice++ );
 		}
 
 		frame.promised_buffers.set_value( std::move( buffers ) );

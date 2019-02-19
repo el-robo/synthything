@@ -156,26 +156,26 @@ namespace audio::jack
 		int process( jack_nframes_t frames )
 		{
 			auto buffers = get_buffers();
+			auto channel = channels.begin();
 
-			if( !buffers.empty() )
+			for( auto &buffer : buffers )
 			{
-				auto channel_it = channels.begin();
 
 				if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( 
-					jack_port_get_buffer( channels.front().port.get(), frames ) 
+					jack_port_get_buffer( channel->port.get(), frames )
 				) )
 				{
-					const auto samples = std::min< size_t >( frames, buffers.front().size() );
+					const auto samples = std::min< size_t >( frames, buffer.size() );
 					std::copy_n( 
-						buffers.front().begin(), 
+						buffer.begin(), 
 						samples, 
 						data
 					);
 				}
-
-				std::swap( buffers, recycled_buffers );
+				++channel;
 			}
 
+			std::swap( buffers, recycled_buffers );
 			wait_for_process.notify_all();
 
 			return 0;
