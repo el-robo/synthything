@@ -96,27 +96,40 @@ generator sine( float frequency = 440.0f, float sample_rate = 48000.0f )
 	};
 }
 
-template < typename Buffer, typename Voice >
-void generate( Buffer &buffer, Voice &voice )
+using voice = std::vector< generator >;
+
+template < typename Buffer >
+void generate( Buffer &buffer, voice &v )
 {
-	std::generate( buffer.begin(), buffer.end(), std::ref( voice ) );
+	std::generate( buffer.begin(), buffer.end(), [ &v ]()
+	{
+		return std::accumulate( v.begin(), v.end(), 0.0f, []( auto &value, auto &generator )
+		{
+			return value + generator();
+		} );
+	} );
 }
 
 void run_engine( engine::implementation &impl )
 {
-	auto gen = sine();
+	std::vector< voice > voices
+	{
+		{ sine( 440.0f ), sine( 220.0f ) },
+		{ sine() }
+	};
 
 	while( impl.running )
 	{
 		auto frame = impl.audio.next_frame();
 		auto buffers = get_buffers( frame );
+
+		// buffers.begin()
+		// std::for_each( )
+		std::transform( voices.front(), voices.end(),  )
 		
-		if( !buffers.empty() )
-		{
-			generate( buffers.front(), gen );
+			generate( buffers.front(), voices.front() );
 		}
 
 		frame.promised_buffers.set_value( std::move( buffers ) );
-		frame.recycled_buffers.clear();
 	}
 }
