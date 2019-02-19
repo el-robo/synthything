@@ -65,6 +65,11 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 
 constexpr auto pi = 3.1415926535897932384626433f;
 
+auto clip( float value )
+{
+	return std::max( -1.0f, std::min( 1.0f, value ) );
+}
+
 struct generator
 {
 	float frequency = 440.0f;
@@ -76,19 +81,25 @@ struct generator
 
 	float operator()()
 	{
-		const auto value = amplitude * std::max( -1.0f, std::min( 1.0f, sin( x ) ) );
+		const auto value = amplitude * clip( sin( x ) );
 		x += (period / sample_rate) * frequency;
 		return value;
 	}
 };
 
-generator sine( float frequency = 440.0, float sample_rate = 48000.0 )
+generator sine( float frequency = 440.0f, float sample_rate = 48000.0f )
 {
 	return
 	{
 		frequency,
 		sample_rate
 	};
+}
+
+template < typename Buffer, typename Voice >
+void generate( Buffer &buffer, Voice &voice )
+{
+	std::generate( buffer.begin(), buffer.end(), std::ref( voice ) );
 }
 
 void run_engine( engine::implementation &impl )
@@ -102,9 +113,10 @@ void run_engine( engine::implementation &impl )
 		
 		if( !buffers.empty() )
 		{
-			auto &buffer = buffers.front();
-			std::generate( buffer.begin(), buffer.end(), std::ref( gen ) );
+			generate( buffers.front(), gen );
 		}
+
 		frame.promised_buffers.set_value( std::move( buffers ) );
+		frame.recycled_buffers.clear();
 	}
 }

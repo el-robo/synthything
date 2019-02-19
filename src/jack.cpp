@@ -156,7 +156,6 @@ namespace audio::jack
 		int process( jack_nframes_t frames )
 		{
 			auto buffers = get_buffers();
-			wait_for_process.notify_all();
 
 			if( !buffers.empty() )
 			{
@@ -172,13 +171,12 @@ namespace audio::jack
 						samples, 
 						data
 					);
-
-					static std::ofstream meh( "what.raw", std::ios::binary );
-					meh.write( reinterpret_cast<char*>( data ), sizeof( float ) * samples );
 				}
 
 				std::swap( buffers, recycled_buffers );
 			}
+
+			wait_for_process.notify_all();
 
 			return 0;
 		}
@@ -210,7 +208,7 @@ namespace audio::jack
 		return impl_->channels.size();
 	}
 
-	auto aqcuire_lock( interface::implementation &impl )
+	auto acquire_lock( interface::implementation &impl )
 	{
 		std::unique_lock lock( impl.mutex );
 		const auto future_done = [ & ]() { return !impl.future_buffers.valid(); };
@@ -225,7 +223,7 @@ namespace audio::jack
 
 	frame interface::next_frame()
 	{
-		const auto lock = aqcuire_lock( *impl_ );		
+		const auto lock = acquire_lock( *impl_ );		
 
 		frame result
 		{
