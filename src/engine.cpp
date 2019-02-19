@@ -72,6 +72,10 @@ auto clip( float value )
 
 struct generator
 {
+	using function = std::function< float( generator & ) >;
+
+	const function generator;
+
 	float frequency = 440.0f;
 	float sample_rate = 48000.0;
 	float x = 0.0f;
@@ -81,16 +85,27 @@ struct generator
 
 	float operator()()
 	{
-		const auto value = amplitude * clip( sin( x ) );
-		x += (period / sample_rate) * frequency;
-		return value;
+		if( generator )
+		{
+			return generator( *this );
+		}
+
+		return 0.0f;
 	}
 };
 
-generator sine( float frequency = 440.0f, float sample_rate = 48000.0f )
+float generate_sine( generator &g )
 {
-	return
+	const auto value = g.amplitude * clip( sin( g.x ) );
+	g.x += (g.period / g.sample_rate) * g.frequency;
+	return value;
+}
+
+auto sine( float frequency = 440.0f, float sample_rate = 48000.0f )
+{
+	return generator
 	{
+		generate_sine,
 		frequency,
 		sample_rate
 	};

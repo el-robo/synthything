@@ -160,10 +160,12 @@ namespace audio::jack
 
 			for( auto &buffer : buffers )
 			{
-
-				if( auto *data = reinterpret_cast< jack_default_audio_sample_t* >( 
+				auto *data = reinterpret_cast< jack_default_audio_sample_t* >
+				( 
 					jack_port_get_buffer( channel->port.get(), frames )
-				) )
+				);
+
+				if( data )
 				{
 					const auto samples = std::min< size_t >( frames, buffer.size() );
 					std::copy_n( 
