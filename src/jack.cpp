@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <chrono>
 #include <mutex>
+#include <fstream>
 
 using namespace std::chrono_literals;
 
@@ -111,6 +112,7 @@ namespace audio::jack
 		std::vector< channel > channels;
 
 		std::mutex mutex;
+		std::condition_variable wait_for_process;
 		std::future< buffers > future_buffers;
 		buffers recycled_buffers;
 
@@ -120,6 +122,7 @@ namespace audio::jack
 			buffer_size( jack_get_buffer_size( client.get() ) ),
 			channels( create_channels( client.get(), 2, buffer_size ) ),
 			mutex(),
+			wait_for_process(),
 			future_buffers(),
 			recycled_buffers()
 		{
@@ -153,6 +156,7 @@ namespace audio::jack
 		int process( jack_nframes_t frames )
 		{
 			auto buffers = get_buffers();
+			wait_for_process.notify_all();
 
 			if( !buffers.empty() )
 			{
@@ -168,6 +172,9 @@ namespace audio::jack
 						samples, 
 						data
 					);
+
+					static std::ofstream meh( "what.raw", std::ios::binary );
+					meh.write( reinterpret_cast<char*>( data ), sizeof( float ) * samples );
 				}
 
 				std::swap( buffers, recycled_buffers );
@@ -203,9 +210,22 @@ namespace audio::jack
 		return impl_->channels.size();
 	}
 
+	auto aqcuire_lock( interface::implementation &impl )
+	{
+		std::unique_lock lock( impl.mutex );
+		const auto future_done = [ & ]() { return !impl.future_buffers.valid(); };
+		
+		while( !future_done() )
+		{
+			impl.wait_for_process.wait( lock );
+		}
+
+		return lock;
+	}
+
 	frame interface::next_frame()
 	{
-		std::lock_guard guard( impl_->mutex );
+		const auto lock = aqcuire_lock( *impl_ );		
 
 		frame result
 		{
