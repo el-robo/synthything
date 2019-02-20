@@ -63,7 +63,8 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 	return result;
 }
 
-constexpr auto pi = 3.1415926535897932384626433f;
+constexpr auto pi = 3.1415926535897932384626433;
+constexpr auto two_pi = pi * 2;
 
 auto clip( float value )
 {
@@ -72,39 +73,48 @@ auto clip( float value )
 
 struct generator
 {
-	using function = std::function< float( generator & ) >;
+	using function = std::function< double( generator & ) >;
+	const function wave_function;
 
-	const function generator;
+	double frequency = 440.0;
+	double t = 0.0;
+	double amplitude = 0.1;
+	double sample_rate = 48000.0;
 
-	float frequency = 440.0f;
-	float sample_rate = 48000.0;
-	float t = 0.0f;
-
-	const float period = (2*pi);
-	const float amplitude = 0.2f;
-
-	float operator()()
+	double operator()()
 	{
-		if( generator )
+		if( wave_function )
 		{
-			return generator( *this );
+			return wave_function( *this );
 		}
 
-		return 0.0f;
+		return 0.0;
 	}
 };
+
+void advance( generator &g, double period )
+{
+	g.t += (period / g.sample_rate) * g.frequency;
+}
 
 float sine( generator &g )
 {
 	const auto value = g.amplitude * clip( sin( g.t ) );
-	g.x += (g.period / g.sample_rate) * g.frequency;
+	advance( g, two_pi );
 	return value;
 }
 
 float square( generator &g )
 {
 	auto value = sine( g );
-	return g.amplitude * (value > 0.0f ? 1.0f : -1.0f);
+	return g.amplitude * (value > 0.0 ? 1.0 : -1.0);
+}
+
+float saw( generator &g )
+{
+	const auto value = g.amplitude * (g.t - std::floor( g.t ));
+	advance( g, 1.0 );
+	return value;
 }
 
 using voice = std::vector< generator >;
@@ -114,7 +124,7 @@ void generate( Buffer &buffer, voice &v )
 {
 	std::generate( buffer.begin(), buffer.end(), [ &v ]()
 	{
-		return std::accumulate( v.begin(), v.end(), 0.0f, []( auto &value, auto &generator )
+		return std::accumulate( v.begin(), v.end(), 0.0, []( double value, auto &generator )
 		{
 			return value + generator();
 		} );
@@ -123,10 +133,12 @@ void generate( Buffer &buffer, voice &v )
 
 void run_engine( engine::implementation &impl )
 {
+	auto freq = 220.0;
 	std::vector< voice > voices
 	{
-		{ { sine, 440.f }, { sine, 220.f } },
-		{ { square } }
+		{ { sine, freq } },
+		{ { square, freq } }
+		// { { square } }
 	};
 
 	while( impl.running )
