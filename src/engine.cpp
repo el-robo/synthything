@@ -91,7 +91,7 @@ struct generator
 	{
 		if( mod.frequency )
 		{
-			return frequency_ * mod.frequency();
+			return frequency_ + mod.frequency();
 		}
 
 		return frequency_;
@@ -101,7 +101,8 @@ struct generator
 	{
 		if( mod.amplitude )
 		{
-			return amplitude_ * mod.amplitude();
+			auto value = mod.amplitude();
+			return amplitude_ * value;
 		}
 
 		return amplitude_;
@@ -171,11 +172,17 @@ void run_engine( engine::implementation &impl )
 {
 	auto freq = 220.0;
 
+	generator sw { saw, freq, 1 };
+	generator sn { sine, freq, 1 };
+	generator mod  { sine, 20, 100 };
+	mod.mod.frequency = generator { saw, 2, 100 };
+	sw.mod.frequency = mod;
+	sn.mod.frequency = mod;
+
 	std::vector< voice > voices
 	{
-		{ { sine, freq } },
-		{ { square, freq } }
-		// { { square } }
+		{ sw, sn },
+		{ sw, sn }
 	};
 
 	set_sample_rate( voices, impl.audio.sample_rate() );

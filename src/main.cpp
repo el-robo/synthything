@@ -8,6 +8,8 @@
 #define FMT_STRING_ALIAS 1
 #include <fmt/format.h>
 
+using namespace std::chrono_literals;
+
 constexpr auto project_name = "SynthyThing";
 
 int main( int argc, char **argv )
@@ -23,7 +25,7 @@ int main( int argc, char **argv )
 		
 		while( running )
 		{
-			std::this_thread::yield();
+			std::this_thread::sleep_for( 10ms );
 		}
 	}
 	catch( std::exception &e )
