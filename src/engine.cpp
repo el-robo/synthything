@@ -78,7 +78,7 @@ struct generator
 
 	float frequency = 440.0f;
 	float sample_rate = 48000.0;
-	float x = 0.0f;
+	float t = 0.0f;
 
 	const float period = (2*pi);
 	const float amplitude = 0.2f;
@@ -94,21 +94,17 @@ struct generator
 	}
 };
 
-float generate_sine( generator &g )
+float sine( generator &g )
 {
-	const auto value = g.amplitude * clip( sin( g.x ) );
+	const auto value = g.amplitude * clip( sin( g.t ) );
 	g.x += (g.period / g.sample_rate) * g.frequency;
 	return value;
 }
 
-auto sine( float frequency = 440.0f, float sample_rate = 48000.0f )
+float square( generator &g )
 {
-	return generator
-	{
-		generate_sine,
-		frequency,
-		sample_rate
-	};
+	auto value = sine( g );
+	return g.amplitude * (value > 0.0f ? 1.0f : -1.0f);
 }
 
 using voice = std::vector< generator >;
@@ -129,8 +125,8 @@ void run_engine( engine::implementation &impl )
 {
 	std::vector< voice > voices
 	{
-		{ sine( 440.0f ), sine( 220.0f ) },
-		{ sine() }
+		{ { sine, 440.f }, { sine, 220.f } },
+		{ { square } }
 	};
 
 	while( impl.running )
