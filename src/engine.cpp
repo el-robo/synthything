@@ -73,60 +73,59 @@ auto clip( float value )
 
 struct generator
 {
-	using function = std::function< double( generator & ) >;
+	using function = std::function< double( generator &, double ) >;
 	const function wave_function;
 
 	double frequency = 440.0;
 	double t = 0.0;
 	double amplitude = 0.1;
-	double sample_rate = 48000.0;
 
-	double operator()()
+	double operator()( double sample_rate )
 	{
 		if( wave_function )
 		{
-			return wave_function( *this );
+			return wave_function( *this, sample_rate );
 		}
 
 		return 0.0;
 	}
 };
 
-void advance( generator &g, double period )
+void advance( generator &g, double period, double sample_rate )
 {
-	g.t += (period / g.sample_rate) * g.frequency;
+	g.t += (period / sample_rate) * g.frequency;
 }
 
-float sine( generator &g )
+float sine( generator &g, double sample_rate )
 {
 	const auto value = g.amplitude * clip( sin( g.t ) );
-	advance( g, two_pi );
+	advance( g, two_pi, sample_rate );
 	return value;
 }
 
-float square( generator &g )
+float square( generator &g, double sample_rate )
 {
-	auto value = sine( g );
+	auto value = sine( g, sample_rate );
 	return g.amplitude * (value > 0.0 ? 1.0 : -1.0);
 }
 
-float saw( generator &g )
+float saw( generator &g, double sample_rate )
 {
 	const auto value = g.amplitude * (g.t - std::floor( g.t ));
-	advance( g, 1.0 );
+	advance( g, 1.0, sample_rate );
 	return value;
 }
 
 using voice = std::vector< generator >;
 
 template < typename Buffer >
-void generate( Buffer &buffer, voice &v )
+void generate( Buffer &buffer, voice &v, double sample_rate )
 {
-	std::generate( buffer.begin(), buffer.end(), [ &v ]()
+	std::generate( buffer.begin(), buffer.end(), [ &v, sample_rate ]()
 	{
-		return std::accumulate( v.begin(), v.end(), 0.0, []( double value, auto &generator )
+		return std::accumulate( v.begin(), v.end(), 0.0, [ sample_rate ]( double value, auto &generator )
 		{
-			return value + generator();
+			return value + generator( sample_rate );
 		} );
 	} );
 }
@@ -151,7 +150,7 @@ void run_engine( engine::implementation &impl )
 
 		while( buffer != buffers.end() && voice != voices.end() )
 		{
-			generate( *buffer++, *voice++ );
+			generate( *buffer++, *voice++, impl.audio.sample_rate() );
 		}
 
 		frame.promised_buffers.set_value( std::move( buffers ) );
