@@ -72,6 +72,35 @@ auto clip( double value )
 	return std::max( -1.0, std::min( 1.0, value ) );
 }
 
+struct generator;
+
+template < typename T >
+using mod_pair = std::pair< std::function< T( T, T ) >, generator >;
+
+template < typename T >
+using modulators = std::vector< mod_pair< T > >;
+
+template < typename T >
+auto process( T value, modulators< T > &mod )
+{
+	return std::accumulate( 
+		mod.begin(), mod.end(), value, 
+		[]( double value, auto &pair )
+		{
+			auto& [ mod, generator ] = pair;
+			return mod( value, generator() );
+		} 
+	);
+}
+
+template < typename T >
+void advance_modulators( modulators< T > &mod, T sample_rate )
+{
+	for( auto &pair : mod )
+	{
+		pair.second.advance( sample_rate );
+	}
+}
 struct generator
 {
 	using function = std::function< double( generator & ) >;
@@ -80,33 +109,22 @@ struct generator
 	double frequency_ = 440.0;
 	double amplitude_ = 0.1;
 	double t = 0.0;
-	double sample_rate_ = 480000.0;
+	double period = 1.0; // this is set by the wave function
 
 	struct
 	{
-		std::function< double() > frequency;
-		std::function< double() > amplitude;
+		modulators< double > frequency;
+		modulators< double > amplitude;
 	} mod;
 
 	double frequency()
 	{
-		if( mod.frequency )
-		{
-			return frequency_ + mod.frequency();
-		}
-
-		return frequency_;
+		return process( frequency_, mod.frequency ); 
 	}
 
 	double amplitude()
 	{
-		if( mod.amplitude )
-		{
-			auto value = mod.amplitude();
-			return amplitude_ * value;
-		}
-
-		return amplitude_;
+		return process( amplitude_, mod.amplitude );
 	}
 
 	double operator()()
@@ -118,17 +136,20 @@ struct generator
 
 		return 0.0;
 	}
-};
 
-void advance( generator &g, double period )
-{
-	g.t += (period / g.sample_rate_) * g.frequency();
-}
+	void advance( double sample_rate )
+	{
+		t += (period / sample_rate) * frequency();
+
+		advance_modulators( mod.frequency, sample_rate );
+		advance_modulators( mod.amplitude, sample_rate );
+	}
+};
 
 float sine( generator &g )
 {
 	const auto value = g.amplitude() * clip( sin( g.t ) );
-	advance( g, two_pi );
+	g.period = two_pi;
 	return value;
 }
 
@@ -140,55 +161,41 @@ float square( generator &g )
 float saw( generator &g )
 {
 	const auto value = (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
-	advance( g, 1.0 );
+	// advance( g, 1.0 );
 	return value;
 }
 
 using voice = std::vector< generator >;
 
 template < typename Buffer >
-void generate( Buffer &buffer, voice &v )
+void generate( Buffer &buffer, voice &v, double sample_rate )
 {
-	std::generate( buffer.begin(), buffer.end(), [ &v ]()
+	std::generate( buffer.begin(), buffer.end(), [ &v, sample_rate ]()
 	{
-		return std::accumulate( v.begin(), v.end(), 0.0, []( double value, auto &generator )
+		return std::accumulate( v.begin(), v.end(), 0.0, [ &sample_rate ]( double value, auto &generator )
 		{
 			value += generator();
+			generator.advance( sample_rate );
 			return value;
 		} );
 	} );
-}
-
-void set_sample_rate( std::vector< voice > &voices, double sample_rate )
-{
-	for( auto &voice : voices )
-	{
-		for( auto &gen : voice )
-		{
-			gen.sample_rate_ = sample_rate;
-		}
-	}
 }
 
 void run_engine( engine::implementation &impl )
 {
 	auto freq = 440.0;
 
-	generator sw { saw, freq, 1 };
-	generator sn { sine, freq, 1 };
+	generator sw { saw, freq, 0.2 };
+	generator sn { sine, freq, 0.2 };
 
-	// generator mod  { sine, 20, 100 };
-	// mod.mod.frequency = generator { saw, 2, 100 };
-	// sw.mod.frequency = mod;
-	// sn.mod.frequency = mod;
+	sn.mod.frequency.push_back( { std::plus<double>(), generator { sine, 2, 100 } } );
+	sn.mod.frequency.push_back( { std::plus<double>(), generator { sine, 4, 100 } } );
 
 	std::vector< voice > voices
 	{
-		{ sw },
+		{ sn },
 		{ sn }
 	};
-
-	set_sample_rate( voices, impl.audio.sample_rate() );
 
 	while( impl.running )
 	{
@@ -200,7 +207,7 @@ void run_engine( engine::implementation &impl )
 
 		while( buffer != buffers.end() && voice != voices.end() )
 		{
-			generate( *buffer++, *voice++ );
+			generate( *buffer++, *voice++, impl.audio.sample_rate() );
 		}
 
 		frame.promised_buffers.set_value( std::move( buffers ) );
