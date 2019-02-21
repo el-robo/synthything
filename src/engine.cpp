@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <numeric>
 #include <math.h>
+#include <iostream>
 
 using namespace synth;
 
@@ -66,16 +67,16 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 constexpr auto pi = 3.1415926535897932384626433;
 constexpr auto two_pi = pi * 2;
 
-auto clip( float value )
+auto clip( double value )
 {
-	return std::max( -1.0f, std::min( 1.0f, value ) );
+	return std::max( -1.0, std::min( 1.0, value ) );
 }
 
 struct generator
 {
 	using function = std::function< double( generator & ) >;
-	const function wave_function;
 
+	const function wave_function;
 	double frequency_ = 440.0;
 	double amplitude_ = 0.1;
 	double t = 0.0;
@@ -138,7 +139,7 @@ float square( generator &g )
 
 float saw( generator &g )
 {
-	const auto value = g.amplitude() * (g.t - std::floor( g.t ));
+	const auto value = (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
 	advance( g, 1.0 );
 	return value;
 }
@@ -152,7 +153,8 @@ void generate( Buffer &buffer, voice &v )
 	{
 		return std::accumulate( v.begin(), v.end(), 0.0, []( double value, auto &generator )
 		{
-			return value + generator();
+			value += generator();
+			return value;
 		} );
 	} );
 }
@@ -170,19 +172,20 @@ void set_sample_rate( std::vector< voice > &voices, double sample_rate )
 
 void run_engine( engine::implementation &impl )
 {
-	auto freq = 220.0;
+	auto freq = 440.0;
 
 	generator sw { saw, freq, 1 };
 	generator sn { sine, freq, 1 };
-	generator mod  { sine, 20, 100 };
-	mod.mod.frequency = generator { saw, 2, 100 };
-	sw.mod.frequency = mod;
-	sn.mod.frequency = mod;
+
+	// generator mod  { sine, 20, 100 };
+	// mod.mod.frequency = generator { saw, 2, 100 };
+	// sw.mod.frequency = mod;
+	// sn.mod.frequency = mod;
 
 	std::vector< voice > voices
 	{
-		{ sw, sn },
-		{ sw, sn }
+		{ sw },
+		{ sn }
 	};
 
 	set_sample_rate( voices, impl.audio.sample_rate() );
