@@ -101,9 +101,11 @@ namespace audio::jack
 	int jack_on_process( jack_nframes_t nframes, void* arg );
 	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg );
 
-	auto read_midi_events( jack_port_t *port, jack_nframes_t frames )
-	{
-		std::vector< jack_midi_event_t > events;
+	auto read_midi_events( 
+		std::vector< jack_midi_event_t > &events,
+		jack_port_t *port, 
+		jack_nframes_t frames 
+	) {
 
 		if( auto *data = jack_port_get_buffer( port, frames ) )
 		{
@@ -196,7 +198,8 @@ namespace audio::jack
 				++port;
 			}
 
-			const auto events = read_midi_events( midi_port.get(), frames );
+			std::vector< jack_midi_event_t > events;
+			const auto events = read_midi_events( events, midi_port.get(), frames );
 
 			std::swap( buffers, recycled_buffers );
 			wait_for_process.notify_all();
