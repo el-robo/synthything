@@ -1,6 +1,8 @@
 #pragma once
 
 #include "audio.hpp"
+#include "midi.hpp"
+
 #include <memory>
 
 namespace synth 
@@ -11,8 +13,6 @@ namespace synth
 			engine( audio::interface & );
 			~engine();
 			
-			void process();
-
 			struct implementation;
 
 		private:

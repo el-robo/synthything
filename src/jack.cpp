@@ -101,25 +101,29 @@ namespace audio::jack
 	int jack_on_process( jack_nframes_t nframes, void* arg );
 	int jack_on_buffer_size_change( jack_nframes_t nframes, void* arg );
 
-	auto read_midi_events( 
-		std::vector< jack_midi_event_t > &events,
+	void read_midi_events( 
 		jack_port_t *port, 
-		jack_nframes_t frames 
+		jack_nframes_t frames,
+		const midi_handler &on_midi
 	) {
+		if( !on_midi )
+		{
+			return;
+		}
+
 		if( auto *data = jack_port_get_buffer( port, frames ) )
 		{
 			const auto count = jack_midi_get_event_count( data );
 			
-			events.resize( count );
-
+			jack_midi_event_t event;
 			int index = 0;
-			for( auto &event : events )
+			
+			while( index < count )
 			{
 				jack_midi_event_get( &event, data, index++ );
+				on_midi( midi { *event.buffer, event.buffer + 1 } );
 			}
 		}
-
-		return events;
 	}
 
 	struct interface::implementation
@@ -134,6 +138,7 @@ namespace audio::jack
 		std::condition_variable wait_for_process;
 		std::future< buffers > future_buffers;
 		buffers recycled_buffers;
+		midi_handler on_midi;
 
 		implementation( std::string_view name ) :
 			jack_server_running( false ),
@@ -144,7 +149,8 @@ namespace audio::jack
 			mutex(),
 			wait_for_process(),
 			future_buffers(),
-			recycled_buffers()
+			recycled_buffers(),
+			on_midi()
 		{
 			jack_set_process_callback( client.get(), &jack_on_process, this );
 			jack_set_buffer_size_callback( client.get(), &jack_on_buffer_size_change, this );
@@ -197,8 +203,7 @@ namespace audio::jack
 				++port;
 			}
 
-			std::vector< jack_midi_event_t > events;
-			read_midi_events( events, midi_port.get(), frames );
+			read_midi_events( midi_port.get(), frames, on_midi );
 
 			std::swap( buffers, recycled_buffers );
 			wait_for_process.notify_all();
@@ -262,6 +267,11 @@ namespace audio::jack
 		impl_->future_buffers = result.promised_buffers.get_future();
 
 		return result;
+	}
+
+	void interface::on_midi( midi_handler handler ) 
+	{
+		impl_->on_midi = handler;
 	}
 
 	template< typename Result, typename ... Args >

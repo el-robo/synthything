@@ -6,6 +6,7 @@
 #include <numeric>
 #include <math.h>
 #include <iostream>
+#include <fmt/format.h>
 
 using namespace synth;
 
@@ -34,14 +35,13 @@ struct engine::implementation
 engine::engine( audio::interface &interface ) :
 	impl_( new implementation( interface ) )
 {
-
+	interface.on_midi( [ this ]( const audio::midi &midi )
+	{
+		fmt::print( "Midi event {} on channel {}\n", midi.message(), midi.channel() );
+	} );
 }
 
 engine::~engine()
-{
-}
-
-void engine::process()
 {
 }
 

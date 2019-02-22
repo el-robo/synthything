@@ -19,6 +19,8 @@ namespace audio::jack
 		
 		virtual frame next_frame() override;
 
+		virtual void on_midi( midi_handler ) override;
+
 		struct implementation;
 		
 		private:
