@@ -1,4 +1,6 @@
 #include "engine.hpp"
+#include "generator.hpp"
+
 #include <future>
 #include <algorithm>
 #include <numeric>
@@ -71,80 +73,6 @@ auto clip( double value )
 {
 	return std::max( -1.0, std::min( 1.0, value ) );
 }
-
-struct generator;
-
-template < typename T >
-using mod_pair = std::pair< std::function< T( T, T ) >, generator >;
-
-template < typename T >
-using modulators = std::vector< mod_pair< T > >;
-
-template < typename T >
-auto process( T value, modulators< T > &mod )
-{
-	return std::accumulate( 
-		mod.begin(), mod.end(), value, 
-		[]( double value, auto &pair )
-		{
-			auto& [ mod, generator ] = pair;
-			return mod( value, generator() );
-		} 
-	);
-}
-
-template < typename T >
-void advance_modulators( modulators< T > &mod, T sample_rate )
-{
-	for( auto &pair : mod )
-	{
-		pair.second.advance( sample_rate );
-	}
-}
-struct generator
-{
-	using function = std::function< double( generator & ) >;
-
-	const function wave_function;
-	double frequency_ = 440.0;
-	double amplitude_ = 0.1;
-	double t = 0.0;
-	double period = 1.0; // this is set by the wave function
-
-	struct
-	{
-		modulators< double > frequency;
-		modulators< double > amplitude;
-	} mod;
-
-	double frequency()
-	{
-		return process( frequency_, mod.frequency ); 
-	}
-
-	double amplitude()
-	{
-		return process( amplitude_, mod.amplitude );
-	}
-
-	double operator()()
-	{
-		if( wave_function )
-		{
-			return wave_function( *this );
-		}
-
-		return 0.0;
-	}
-
-	void advance( double sample_rate )
-	{
-		t += (period / sample_rate) * frequency();
-
-		advance_modulators( mod.frequency, sample_rate );
-		advance_modulators( mod.amplitude, sample_rate );
-	}
-};
 
 float sine( generator &g )
 {

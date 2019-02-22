@@ -106,7 +106,6 @@ namespace audio::jack
 		jack_port_t *port, 
 		jack_nframes_t frames 
 	) {
-
 		if( auto *data = jack_port_get_buffer( port, frames ) )
 		{
 			const auto count = jack_midi_get_event_count( data );
@@ -199,7 +198,7 @@ namespace audio::jack
 			}
 
 			std::vector< jack_midi_event_t > events;
-			const auto events = read_midi_events( events, midi_port.get(), frames );
+			read_midi_events( events, midi_port.get(), frames );
 
 			std::swap( buffers, recycled_buffers );
 			wait_for_process.notify_all();

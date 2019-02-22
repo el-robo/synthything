@@ -1,6 +1,6 @@
 #pragma once
 
-#include "audio_interface.hpp"
+#include "audio.hpp"
 #include <memory>
 
 namespace synth 

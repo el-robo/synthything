@@ -18,10 +18,12 @@ add_executable( synthything
 
 	src/engine.cpp
 	src/jack.cpp
+	src/generator.cpp
 
-	include/audio_interface.hpp
+	include/audio.hpp
 	include/engine.hpp
 	include/jack.hpp
+	include/generator.hpp
 )
 
 target_link_libraries( synthything 
