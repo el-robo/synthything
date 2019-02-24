@@ -35,4 +35,8 @@ struct generator
 	void advance( double sample_rate );
 };
 
+double sine( generator &g );
+double square( generator &g );
+double saw( generator &g );
+
 }

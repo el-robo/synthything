@@ -9,10 +9,10 @@ namespace audio
 		uint8_t header;
 		const uint8_t* data;
 
-		enum class message_type : uint8_t
+		enum message_type
 		{
-			note_on = 0b1000,
-			note_off = 0b1001,
+			note_off = 0b1000,
+			note_on = 0b1001,
 			polyphonic_key_pressure = 0b1010,
 			control_change = 0b1011,
 			program_change = 0b1100,
@@ -21,12 +21,12 @@ namespace audio
 			system_exclusive = 0b1111			
 		};
 
-		uint8_t message() const
+		inline uint8_t message() const
 		{
 			return (header & 0xF0) >> 4;
 		}
 
-		uint8_t channel() const
+		inline uint8_t channel() const
 		{
 			return header & 0x0F;
 		}

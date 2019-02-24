@@ -15,7 +15,6 @@ include_directories( include )
 
 add_executable( synthything 
 	src/main.cpp
-
 	src/engine.cpp
 	src/jack.cpp
 	src/generator.cpp

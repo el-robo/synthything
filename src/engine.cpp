@@ -6,9 +6,11 @@
 #include <numeric>
 #include <math.h>
 #include <iostream>
+#include <map>
 #include <fmt/format.h>
 
 using namespace synth;
+using voice = std::vector< generator >;
 
 void run_engine( engine::implementation & );
 
@@ -17,6 +19,7 @@ struct engine::implementation
 	audio::interface &audio;
 	std::atomic<bool> running;
 	std::future<void> job;
+	std::map< uint8_t, voice > voices;
 
 	implementation( audio::interface &interface ) :
 		audio( interface ),
@@ -32,12 +35,47 @@ struct engine::implementation
 	}
 };
 
+auto frequency_for_note( int note )
+{
+	constexpr auto a4_frequency = 440.0;
+	constexpr auto a4_note = 69.0;
+
+	const auto note_delta = note - a4_note;
+	return a4_frequency * pow( 2, note_delta/12.0 );
+}
+
 engine::engine( audio::interface &interface ) :
 	impl_( new implementation( interface ) )
 {
 	interface.on_midi( [ this ]( const audio::midi &midi )
 	{
-		fmt::print( "Midi event {} on channel {}\n", midi.message(), midi.channel() );
+		using type = audio::midi::message_type;
+
+		switch( midi.message() )
+		{
+			case type::note_on:
+			{
+				const int note = midi.data[ 0 ];
+				const int velocity = midi.data[ 1 ];				
+				const auto frequency = frequency_for_note( note );
+				auto &voice = impl_->voices[ note ];
+
+				if( voice.empty() )
+				{
+					voice.push_back( generator { synth::sine, frequency, 0.2 } );
+				}
+
+				break;
+			}
+
+			case type::note_off:
+			{
+				int note = midi.data[ 0 ];
+				auto &voice = impl_->voices[ note ];
+				voice.clear();
+				break;
+			}
+		}
 	} );
 }
 
@@ -61,39 +99,11 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 	std::for_each( result.begin(), result.end(), [ & ]( auto &buffer )
 	{
 		buffer.resize( frame.sample_count );
+		std::fill( buffer.begin(), buffer.end(), 0.0f );
 	} );
 
 	return result;
 }
-
-constexpr auto pi = 3.1415926535897932384626433;
-constexpr auto two_pi = pi * 2;
-
-auto clip( double value )
-{
-	return std::max( -1.0, std::min( 1.0, value ) );
-}
-
-float sine( generator &g )
-{
-	const auto value = g.amplitude() * clip( sin( g.t ) );
-	g.period = two_pi;
-	return value;
-}
-
-float square( generator &g )
-{
-	return g.amplitude() * (sine( g ) > 0.0 ? 1.0 : -1.0);
-}
-
-float saw( generator &g )
-{
-	const auto value = (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
-	// advance( g, 1.0 );
-	return value;
-}
-
-using voice = std::vector< generator >;
 
 template < typename Buffer >
 void generate( Buffer &buffer, voice &v, double sample_rate )
@@ -111,31 +121,26 @@ void generate( Buffer &buffer, voice &v, double sample_rate )
 
 void run_engine( engine::implementation &impl )
 {
-	auto freq = 440.0;
-
-	generator sw { saw, freq, 0.2 };
-	generator sn { sine, freq, 0.2 };
-
-	sn.mod.frequency.push_back( { std::plus<double>(), generator { sine, 2, 100 } } );
-	sn.mod.frequency.push_back( { std::plus<double>(), generator { sine, 4, 100 } } );
-
-	std::vector< voice > voices
-	{
-		{ sn },
-		{ sn }
-	};
-
 	while( impl.running )
 	{
 		auto frame = impl.audio.next_frame();
 		auto buffers = get_buffers( frame );
 
-		auto buffer = buffers.begin();
-		auto voice = voices.begin();
-
-		while( buffer != buffers.end() && voice != voices.end() )
+		if( !buffers.empty() )
 		{
-			generate( *buffer++, *voice++, impl.audio.sample_rate() );
+			auto &buffer = buffers.front();
+			for( auto &voice : impl.voices )
+			{
+				if( !voice.second.empty() )
+				{
+					generate( buffer, voice.second, impl.audio.sample_rate() );
+				}
+			}
+
+			for( auto it = buffers.begin() + 1; it != buffers.end(); ++it )
+			{
+				std::copy( buffer.begin(), buffer.end(), it->begin() );
+			}
 		}
 
 		frame.promised_buffers.set_value( std::move( buffers ) );

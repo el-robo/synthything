@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <math.h>
 
 using namespace synth;
 
@@ -53,4 +54,30 @@ void generator::advance( double sample_rate )
 
 	advance_modulators( mod.frequency, sample_rate );
 	advance_modulators( mod.amplitude, sample_rate );
+}
+
+constexpr auto pi = 3.1415926535897932384626433;
+constexpr auto two_pi = pi * 2;
+
+auto clip( double value )
+{
+	return std::max( -1.0, std::min( 1.0, value ) );
+}
+
+double synth::sine( generator &g )
+{
+	const auto value = g.amplitude() * clip( sin( g.t ) );
+	g.period = two_pi;
+	return value;
+}
+
+double synth::square( generator &g )
+{
+	return g.amplitude() * (synth::sine( g ) > 0.0 ? 1.0 : -1.0);
+}
+
+double synth::saw( generator &g )
+{
+	const auto value = (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
+	return value;
 }
