@@ -108,15 +108,18 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 template < typename Buffer >
 void generate( Buffer &buffer, voice &v, double sample_rate )
 {
-	std::generate( buffer.begin(), buffer.end(), [ &v, sample_rate ]()
-	{
-		return std::accumulate( v.begin(), v.end(), 0.0, [ &sample_rate ]( double value, auto &generator )
+	std::transform(
+		buffer.begin(), buffer.end(), buffer.begin(), 
+		[ &v, sample_rate ]( float value )
 		{
-			value += generator();
-			generator.advance( sample_rate );
-			return value;
-		} );
-	} );
+			return std::accumulate( v.begin(), v.end(), value, [ &sample_rate ]( double value, auto &generator )
+			{
+				value += generator();
+				generator.advance( sample_rate );
+				return value;
+			} );
+		} 
+	);
 }
 
 void run_engine( engine::implementation &impl )
