@@ -78,6 +78,5 @@ double synth::square( generator &g )
 
 double synth::saw( generator &g )
 {
-	const auto value = (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
-	return value;
+	return (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
 }

@@ -62,7 +62,7 @@ engine::engine( audio::interface &interface ) :
 
 				if( voice.empty() )
 				{
-					voice.push_back( generator { synth::sine, frequency, 0.2 } );
+					voice.push_back( generator { synth::saw, frequency, 0.2 } );
 				}
 
 				break;
@@ -132,6 +132,9 @@ void run_engine( engine::implementation &impl )
 		if( !buffers.empty() )
 		{
 			auto &buffer = buffers.front();
+
+			std::fill( buffer.begin(), buffer.end(), 0.0f );
+
 			for( auto &voice : impl.voices )
 			{
 				if( !voice.second.empty() )
