@@ -78,5 +78,5 @@ double synth::square( generator &g )
 
 double synth::saw( generator &g )
 {
-	return (g.amplitude() * 2  * (g.t - std::floor( g.t )) ) - 1.0;
+	return g.amplitude() * ( 2 * ( g.t - std::floor( g.t ) ) - 1.0 );
 }
