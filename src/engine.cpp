@@ -19,6 +19,7 @@ struct engine::implementation
 	audio::interface &audio;
 	std::atomic<bool> running;
 	std::future<void> job;
+	std::mutex mutex;
 	std::map< uint8_t, voice > voices;
 
 	implementation( audio::interface &interface ) :
@@ -58,6 +59,8 @@ engine::engine( audio::interface &interface ) :
 				const int note = midi.data[ 0 ];
 				const int velocity = midi.data[ 1 ];				
 				const auto frequency = frequency_for_note( note );
+
+				std::lock_guard( impl_->mutex );
 				auto &voice = impl_->voices[ note ];
 
 				if( voice.empty() )
@@ -70,6 +73,7 @@ engine::engine( audio::interface &interface ) :
 
 			case type::note_off:
 			{
+				std::lock_guard( impl_->mutex );
 				int note = midi.data[ 0 ];
 				auto &voice = impl_->voices[ note ];
 				voice.clear();
@@ -134,6 +138,8 @@ void run_engine( engine::implementation &impl )
 			auto &buffer = buffers.front();
 
 			std::fill( buffer.begin(), buffer.end(), 0.0f );
+
+			std::lock_guard( impl.mutex );
 
 			for( auto &voice : impl.voices )
 			{
