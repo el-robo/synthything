@@ -21,11 +21,15 @@ struct engine::implementation
 	std::future<void> job;
 	std::mutex mutex;
 	std::map< uint8_t, voice > voices;
+	double volume;
 
 	implementation( audio::interface &interface ) :
 		audio( interface ),
 		running( true ),
-		job( std::async( std::launch::async, [ this ](){ run_engine( *this ); } ) )
+		job( std::async( std::launch::async, [ this ](){ run_engine( *this ); } ) ),
+		mutex(),
+		voices(),
+		volume( 0.3 )
 	{
 	}
 
@@ -57,7 +61,7 @@ engine::engine( audio::interface &interface ) :
 			case type::note_on:
 			{
 				const int note = midi.data[ 0 ];
-				const int velocity = midi.data[ 1 ];				
+				const auto velocity = static_cast< double >( midi.data[ 1 ] ) / 127.0;
 				const auto frequency = frequency_for_note( note );
 
 				std::lock_guard( impl_->mutex );
@@ -65,7 +69,7 @@ engine::engine( audio::interface &interface ) :
 
 				if( voice.empty() )
 				{
-					voice.push_back( generator { synth::saw, frequency, 0.2 } );
+					voice.push_back( generator { synth::saw, frequency, impl_->volume * velocity } );
 				}
 
 				break;
