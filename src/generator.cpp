@@ -1,10 +1,11 @@
 #include "generator.hpp"
+#include "filter.hpp"
 
 #include <algorithm>
 #include <numeric>
 #include <math.h>
 
-using namespace synth;
+namespace synth {
 
 template < typename T >
 auto process( T value, modulators< T > &mod )
@@ -42,7 +43,10 @@ double generator::operator()()
 {
 	if( wave_function )
 	{
-		return wave_function( *this );
+		return filter( 
+			amplitude() * wave_function( *this ),
+			mod.filters
+		);
 	}
 
 	return 0.0;
@@ -64,19 +68,21 @@ auto clip( double value )
 	return std::max( -1.0, std::min( 1.0, value ) );
 }
 
-double synth::sine( generator &g )
+double sine( generator &g )
 {
-	const auto value = g.amplitude() * clip( sin( g.t ) );
+	const auto value = clip( sin( g.t ) );
 	g.period = two_pi;
 	return value;
 }
 
-double synth::square( generator &g )
+double square( generator &g )
 {
-	return g.amplitude() * (synth::sine( g ) > 0.0 ? 1.0 : -1.0);
+	return (synth::sine( g ) > 0.0 ? 1.0 : -1.0);
 }
 
-double synth::saw( generator &g )
+double saw( generator &g )
 {
-	return g.amplitude() * ( 2 * ( g.t - std::floor( g.t ) ) - 1.0 );
+	return ( 2 * ( g.t - std::floor( g.t ) ) - 1.0 );
+}
+
 }

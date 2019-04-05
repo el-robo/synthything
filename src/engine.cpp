@@ -120,12 +120,17 @@ void generate( Buffer &buffer, voice &v, double sample_rate )
 		buffer.begin(), buffer.end(), buffer.begin(), 
 		[ &v, sample_rate ]( float value )
 		{
-			return std::accumulate( v.begin(), v.end(), value, [ &sample_rate ]( double value, auto &generator )
-			{
-				value += generator();
-				generator.advance( sample_rate );
-				return value;
-			} );
+			// accumulate the output of each generator in this voice
+			return std::accumulate( v.begin(), v.end(), value, 
+				[ &sample_rate ]( double value, synth::generator &generator )
+				{
+					// value += filter( generator.filters(), generator() );
+					value += generator();
+					generator.advance( sample_rate );
+					
+					return value;
+				} 
+			);
 		} 
 	);
 }

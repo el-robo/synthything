@@ -27,6 +27,7 @@ struct generator
 	{
 		modulators< double > frequency;
 		modulators< double > amplitude;
+		modulators< double > filters;
 	} mod;
 
 	double frequency();
