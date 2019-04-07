@@ -160,6 +160,8 @@ namespace audio::jack
 			{
 				throw std::runtime_error( fmt::format( "could not activate jack client, error {}", error ) );
 			}
+
+			set_sample_rate( jack_get_sample_rate( client.get() ) );
 		}
 
 		void shutdown()
@@ -226,11 +228,6 @@ namespace audio::jack
 
 	interface::~interface()
 	{
-	}
-
-	uint32_t interface::sample_rate() const
-	{
-		return jack_get_sample_rate( impl_->client.get() );
 	}
 
 	uint32_t interface::channel_count() const

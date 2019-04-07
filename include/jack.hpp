@@ -14,7 +14,6 @@ namespace audio::jack
 		interface( std::string_view name );
 		~interface();
 
-		virtual uint32_t sample_rate() const override;
 		virtual uint32_t channel_count() const override;
 		
 		virtual frame next_frame() override;

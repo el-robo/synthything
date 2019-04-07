@@ -15,6 +15,7 @@ include_directories( include )
 
 add_executable( synthything 
 	src/main.cpp
+	src/audio.cpp
 	src/engine.cpp
 	src/jack.cpp
 	src/generator.cpp
@@ -25,6 +26,7 @@ add_executable( synthything
 	include/jack.hpp
 	include/generator.hpp
 	include/filter.hpp
+	include/midi.hpp
 )
 
 target_link_libraries( synthything 

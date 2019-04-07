@@ -8,12 +8,14 @@
 
 namespace audio
 {
+	double sample_rate();
+	void set_sample_rate( double );
+
 	struct frame;
 	using midi_handler = std::function< void( midi ) >;
 
 	struct interface
 	{
-		virtual uint32_t sample_rate() const = 0;
 		virtual uint32_t channel_count() const = 0;
 		
 		virtual frame next_frame() = 0;

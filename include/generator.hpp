@@ -1,11 +1,19 @@
 #pragma once
 
+#include "filter.hpp"
+
 #include <functional>
 #include <vector>
 
 namespace synth {
 
 struct generator;
+
+/**
+ * Modulators are a combination of a binary function and a generator.
+ * For example: { std::plus< double >(), generator { sine, 2, 100 } };
+ * The amplitude is meant to be way higher in order to have much effect.
+ **/
 
 template < typename T >
 using mod_pair = std::pair< std::function< T( T, T ) >, generator >;
@@ -27,14 +35,14 @@ struct generator
 	{
 		modulators< double > frequency;
 		modulators< double > amplitude;
-		modulators< double > filters;
+		std::vector< synth::filter_function > filters;
 	} mod;
 
 	double frequency();
 	double amplitude();
 
 	double operator()();
-	void advance( double sample_rate );
+	void advance();
 };
 
 double sine( generator &g );

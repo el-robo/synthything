@@ -12,7 +12,7 @@ namespace synth
 		public:
 			engine( audio::interface & );
 			~engine();
-			
+
 			struct implementation;
 
 		private:

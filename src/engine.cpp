@@ -1,5 +1,6 @@
 #include "engine.hpp"
 #include "generator.hpp"
+#include "filter.hpp"
 
 #include <future>
 #include <algorithm>
@@ -69,7 +70,18 @@ engine::engine( audio::interface &interface ) :
 
 				if( voice.empty() )
 				{
-					voice.push_back( generator { synth::saw, frequency, impl_->volume * velocity } );
+					generator g { synth::saw, frequency, impl_->volume * velocity };
+					g.mod.frequency.push_back
+					( 
+						{
+							std::plus< double >(),
+							generator { synth::sine, 1, 100 } 
+						} 
+					);
+					g.mod.filters.push_back( 
+						synth::low_pass( 0.3 )
+					);
+					voice.emplace_back( std::move( g ) );
 				}
 
 				break;
@@ -114,19 +126,18 @@ std::vector< audio::buffer > get_buffers( audio::frame &frame )
 }
 
 template < typename Buffer >
-void generate( Buffer &buffer, voice &v, double sample_rate )
+void generate( Buffer &buffer, voice &v )
 {
 	std::transform(
 		buffer.begin(), buffer.end(), buffer.begin(), 
-		[ &v, sample_rate ]( float value )
+		[ &v ]( float value )
 		{
 			// accumulate the output of each generator in this voice
 			return std::accumulate( v.begin(), v.end(), value, 
-				[ &sample_rate ]( double value, synth::generator &generator )
+				[]( double value, synth::generator &generator )
 				{
-					// value += filter( generator.filters(), generator() );
 					value += generator();
-					generator.advance( sample_rate );
+					generator.advance();
 					
 					return value;
 				} 
@@ -154,7 +165,7 @@ void run_engine( engine::implementation &impl )
 			{
 				if( !voice.second.empty() )
 				{
-					generate( buffer, voice.second, impl.audio.sample_rate() );
+					generate( buffer, voice.second );
 				}
 			}
 

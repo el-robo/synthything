@@ -1,5 +1,6 @@
 #include "generator.hpp"
 #include "filter.hpp"
+#include "audio.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -21,11 +22,11 @@ auto process( T value, modulators< T > &mod )
 }
 
 template < typename T >
-void advance_modulators( modulators< T > &mod, T sample_rate )
+void advance_modulators( modulators< T > &mod )
 {
 	for( auto &pair : mod )
 	{
-		pair.second.advance( sample_rate );
+		pair.second.advance();
 	}
 }
 
@@ -52,12 +53,12 @@ double generator::operator()()
 	return 0.0;
 }
 
-void generator::advance( double sample_rate )
+void generator::advance()
 {
-	t += (period / sample_rate) * frequency();
+	t += (period / audio::sample_rate() ) * frequency();
 
-	advance_modulators( mod.frequency, sample_rate );
-	advance_modulators( mod.amplitude, sample_rate );
+	advance_modulators( mod.frequency );
+	advance_modulators( mod.amplitude );
 }
 
 constexpr auto pi = 3.1415926535897932384626433;
